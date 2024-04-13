@@ -16,6 +16,10 @@
         }
     }
     </script>
+    <script type="module">
+        import { DragControls } from 'three/addons/controls/DragControls.js';
+        window.DragControls = DragControls;
+    </script>
 
     <!-- 添加 simplepeer 和 socket.io 脚本 -->
     <script src="./libraries/simplepeer.min.js"></script>
@@ -23,6 +27,10 @@
     <div id="user-label-container"></div>
     <input type="text" id="username-input" placeholder="Enter your username">
     <button id="set-username-button">Set Username</button>
+    <!-- 对话框容器，用于显示NPC的对话 -->
+    <div id="dialogue-box" style="position: absolute; bottom: 10px; width: 100%; text-align: center;"></div>
+    <!-- NPC标签容器，您的JavaScript代码中提到了这个元素 -->
+    <div id="user-label-container"></div>
     <!-- Three.js 和相关逻辑的脚本 -->
     <script type="module" src="index.js"></script>
 </body>

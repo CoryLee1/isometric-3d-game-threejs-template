@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { OrbitControls } from 'three/addons/controls/OrbitControls';
 
 export class MyScene {
   constructor() {
@@ -31,6 +32,7 @@ export class MyScene {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; // default THREE.PCFShadowMap
 
     this.setupEnvironment();
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
 
     // 创建玩家对象
     this.player = new THREE.Mesh(
@@ -45,12 +47,97 @@ export class MyScene {
     this.keysPressed = {};
 
     this.frameCount = 0;
+    // 创建NPC
+    this.npcs = [];
+    this.npcPositions = [
+      { x: -5, y: 0.5, z: 0 },
+      { x: 5, y: 0.5, z: 0 },
+      { x: 0, y: 0.5, z: -5 },
+      { x: 0, y: 0.5, z: 5 },
+      { x: -5, y: 0.5, z: -5 },
+      { x: 2, y: 0.5, z: 5 },
+      { x: 0, y: 0.5, z: 0 },
+    ];
+
+    for (let i = 0; i < this.npcPositions.length; i++) {
+      const npc = new THREE.Mesh(
+        new THREE.TorusGeometry(0.5, 0.2, 16, 100),
+        new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+      );
+      npc.position.set(this.npcPositions[i].x, this.npcPositions[i].y, this.npcPositions[i].z);
+      this.scene.add(npc);
+
+      const labelDiv = document.createElement('div');
+      labelDiv.className = 'npc-label';
+      labelDiv.textContent = `NPC${i + 1}`;
+      document.getElementById('user-label-container').appendChild(labelDiv);
+
+      this.npcs.push({ mesh: npc, labelDiv: labelDiv });
+      // 创建对话标签
+      const dialogueDiv = document.createElement('div');
+      dialogueDiv.className = 'npc-dialogue';
+      dialogueDiv.textContent = '';
+      dialogueDiv.style.position = 'absolute'; 
+      dialogueDiv.style.display = 'none'; // 默认不显示
+      document.body.appendChild(dialogueDiv); // 添加到页面中
+
+      // 存储对话标签引用
+      this.npcs[i].dialogueDiv = dialogueDiv;
+    }
+    // 设置拖动控制
+    this.dragControls = new DragControls(this.npcs.map(npc => npc.mesh), this.camera, this.renderer.domElement);
+    this.dragControls.addEventListener('dragstart', (event) => {
+      this.controls.enabled = false; // 当拖动开始时，禁用OrbitControls来避免冲突
+      this.selectedNPC = event.object; // 记录当前被拖动的NPC
+    });
+
+    this.dragControls.addEventListener('drag', (event) => {
+      const pos = event.object.position.clone();
+      pos.y = 0.5; // 保持NPC在地面之上固定高度
+      event.object.position.copy(pos); // 更新被拖动的NPC位置
+      // 为调试目的打印当前拖动的NPC的索引和位置
+      console.log(`拖动NPC索引: ${this.npcs.findIndex(npc => npc.mesh === event.object)} 到位置:`, pos);
+    });
+
+    this.dragControls.addEventListener('dragend', (event) => {
+      // 重新启用 OrbitControls
+      this.controls.enabled = true;
+
+      // 找到拖动的NPC在数组中的索引
+      const index = this.npcs.findIndex(npc => npc.mesh === event.object);
+
+      // 确保我们找到了NPC，且它在场景中
+      if (index !== -1 && this.scene.children.includes(event.object)) {
+        // 使用新的位置更新NPC的位置
+        this.npcPositions[index] = event.object.position.clone();
+
+        // 打印出更新后的位置，用于调试
+        console.log(`NPC索引: ${index} 移动到位置:`, this.npcPositions[index]);
+
+        // 立即重新渲染场景，确保位置更新
+        this.renderer.render(this.scene, this.camera);
+      } else {
+        // 如果找不到NPC或NPC不在场景中，则打印错误消息
+        console.error(`无法找到NPC或NPC不在场景中: ${index}`);
+      }
+
+      // 清除 selectedNPC，因为拖动已结束
+      this.selectedNPC = null;
+    });
+
 
     // 创建用于显示自己用户名的HTML元素
     this.playerLabelDiv = document.createElement('div');
     this.playerLabelDiv.className = 'user-label';
     this.playerLabelDiv.textContent = 'Me';
     document.getElementById('user-label-container').appendChild(this.playerLabelDiv);
+    // 创建地面
+    this.ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(100, 100),
+      new THREE.MeshBasicMaterial({ color: 0xcccccc, transparent: true, opacity: 0.5 })
+    );
+    this.ground.rotation.x = -Math.PI / 2;
+    this.scene.add(this.ground);
     this.loop();
   }
 
@@ -236,44 +323,121 @@ export class MyScene {
   //////////////////////////////////////////////////////////////////////
   //////////////////////////////////////////////////////////////////////
   // Rendering 🎥
-
   loop() {
     this.frameCount++;
-  
+
     // 更新玩家和相机位置
     this.updatePlayerPosition();
     this.updateCameraPosition();
-  
+
     // 更新自己的用户名标签位置
-    const playerLabelPosition = this.player.position.clone();
-    playerLabelPosition.y += 0.2;
-    playerLabelPosition.project(this.camera);
-  
-    const playerLabelX = (playerLabelPosition.x * 0.5 + 0.5) * window.innerWidth;
-    const playerLabelY = (playerLabelPosition.y * -0.5 + 0.5) * window.innerHeight;
-  
-    this.playerLabelDiv.style.transform = `translate(-50%, -150%) translate(${playerLabelX}px,${playerLabelY}px)`;
-  
+    this.updateLabelPosition(this.player, this.playerLabelDiv, 0.2);
+
     // 更新其他玩家的用户名标签位置
-    for (let id in this.avatars) {
-      const avatar = this.avatars[id];
-      const labelPosition = avatar.head.position.clone();
-      labelPosition.y += 0.2;
-      labelPosition.project(this.camera);
-  
-      const x = (labelPosition.x * 0.5 + 0.5) * window.innerWidth;
-      const y = (labelPosition.y * -0.5 + 0.5) * window.innerHeight;
-  
-      avatar.labelDiv.style.transform = `translate(-50%, -150%) translate(${x}px,${y}px)`;
+    Object.values(this.avatars).forEach(avatar => {
+      this.updateLabelPosition(avatar.head, avatar.labelDiv, 0.2);
+    });
+
+    // 更新NPC位置和标签位置
+    this.npcs.forEach(npc => {
+      this.updateLabelPosition(npc.mesh, npc.labelDiv, 0.7);
+    });
+
+    this.updateDialogue();
+
+    // 只有当一个NPC被选中拖动时，才运行射线投射器的逻辑
+    if (this.selectedNPC) {
+      this.raycaster.setFromCamera(this.mouse, this.camera);
+      const intersects = this.raycaster.intersectObject(this.ground);
+      if (intersects.length > 0) {
+        const intersectPoint = intersects[0].point;
+        intersectPoint.y = 0.5; // 保持NPC在地面之上固定高度
+        this.selectedNPC.position.copy(intersectPoint); // 只更新被拖动的NPC位置
+      }
     }
-  
-    // update client volumes every 25 frames
+
+    // 定期更新客户端音量
     if (this.frameCount % 25 === 0) {
       this.updateClientVolumes();
     }
-  
+
+    // 渲染场景
     this.renderer.render(this.scene, this.camera);
-  
+
+    // 请求下一帧动画
     requestAnimationFrame(() => this.loop());
   }
-}
+
+  // 新增的帮助函数用于更新标签位置
+  updateLabelPosition(object3D, labelDiv, yOffset) {
+    const labelPosition = object3D.position.clone();
+    labelPosition.y += yOffset; // 在Y轴方向上稍微提升标签位置
+    labelPosition.project(this.camera);
+
+    const x = (labelPosition.x * 0.5 + 0.5) * this.renderer.domElement.clientWidth;
+    const y = (labelPosition.y * -0.5 + 0.5) * this.renderer.domElement.clientHeight;
+
+    labelDiv.style.transform = `translate(-50%, -50%) translate(${x}px,${y}px)`;
+    labelDiv.style.zIndex = labelPosition.z < 1 ? '25' : '-25';
+  }
+  updateDialogue() {
+    this.npcs.forEach((npc, index) => {
+      const distance = npc.mesh.position.distanceTo(this.player.position);
+
+      // 更新对话内容和显示状态
+      if (distance < 2) {
+        let text = '';
+        switch (index) {
+          case 0:
+            text = '哈哈哈哈';
+            break;
+          case 1:
+            text = '呵呵呵';
+            break;
+          case 2:
+            text = '嘻嘻嘻';
+            break;
+          case 3:
+            text = '吼吼吼';
+            break;
+          case 4:
+            text = '嗷嗷嗷啊';
+            break;
+          case 5:
+            text = '呜呜呜';
+            break;
+          case 6:
+            text = '靠北';
+            break;
+          default:
+            text = '';
+            break;
+        }
+        npc.dialogueDiv.textContent = text;
+        npc.dialogueDiv.style.display = 'block'; // 显示对话标签
+      } else {
+        npc.dialogueDiv.style.display = 'none'; // 隐藏对话标签
+      }
+
+      // 更新对话标签位置
+      if (npc.dialogueDiv.style.display !== 'none') {
+        this.updateDialoguePosition(npc.mesh, npc.dialogueDiv);
+      }
+    });
+  }
+
+  updateDialoguePosition(mesh, dialogueDiv) {
+    const labelPosition = new THREE.Vector3();
+    labelPosition.setFromMatrixPosition(mesh.matrixWorld);
+    labelPosition.y += 1; // 在Y轴方向上稍微提升标签位置
+    labelPosition.project(this.camera);
+
+    const x = (labelPosition.x * .5 + .5) * this.renderer.domElement.clientWidth;
+    const y = (labelPosition.y * -.5 + .5) * this.renderer.domElement.clientHeight;
+
+    dialogueDiv.style.left = `${x}px`;
+    dialogueDiv.style.top = `${y}px`;
+  }
+
+
+}  

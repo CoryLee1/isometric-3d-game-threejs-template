@@ -1,3 +1,12 @@
+.npc-dialogue {
+    position: absolute;
+    color: white; /* 选择您喜欢的颜色 */
+    background-color: rgba(0, 0, 0, 0.5); /* 背景透明 */
+    padding: 5px;
+    border-radius: 5px;
+    pointer-events: none; /* 防止对话框拦截鼠标事件 */
+  }
+  
 #user-label-container {
     position: absolute;
     top: 0;
