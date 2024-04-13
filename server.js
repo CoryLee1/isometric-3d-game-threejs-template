@@ -14,12 +14,18 @@ console.log("Server is running on http://localhost:8080");
 const io = require("socket.io")().listen(server);
 
 const peers = {};
+const usernames = {};
 
 io.on("connection", (socket) => {
   console.log(
     "Someone joined our server using socket.io.  Their socket id is",
     socket.id
   );
+  usernames[socket.id] = 'User' + Math.floor(Math.random() * 1000);
+  socket.on("setUsername", (username) => {
+    usernames[socket.id] = username;
+    io.sockets.emit("usernames", usernames);
+  });
 
   // Make sure to send the client all existing peers
   socket.emit("introduction", peers);
@@ -61,10 +67,13 @@ io.on("connection", (socket) => {
     io.sockets.emit("peerDisconnected", socket.id);
 
     delete peers[socket.id];
+    delete usernames[socket.id];
+    io.sockets.emit("usernames", usernames);
   });
 });
 
 // update all clients with peer data every 100 milliseconds (around 10 times per second)
 setInterval(() => {
   io.sockets.emit("peers", peers);
+  io.sockets.emit("usernames", usernames);
 }, 100);

@@ -46,6 +46,11 @@ export class MyScene {
 
     this.frameCount = 0;
 
+    // 创建用于显示自己用户名的HTML元素
+    this.playerLabelDiv = document.createElement('div');
+    this.playerLabelDiv.className = 'user-label';
+    this.playerLabelDiv.textContent = 'Me';
+    document.getElementById('user-label-container').appendChild(this.playerLabelDiv);
     this.loop();
   }
 
@@ -204,7 +209,14 @@ export class MyScene {
       }
     }
   }
-
+  updatePeerUsername(id, username) {
+    if (this.avatars[id]) {
+      this.avatars[id].labelDiv.textContent = username;
+    }
+  }
+  updatePlayerUsername(username) {
+    this.playerLabelDiv.textContent = username;
+  }
   //////////////////////////////////////////////////////////////////////
   //////////////////////////////////////////////////////////////////////
   // Interaction 🤾‍♀️
@@ -227,30 +239,41 @@ export class MyScene {
 
   loop() {
     this.frameCount++;
-
+  
     // 更新玩家和相机位置
     this.updatePlayerPosition();
     this.updateCameraPosition();
-
-    // 更新标签位置
+  
+    // 更新自己的用户名标签位置
+    const playerLabelPosition = this.player.position.clone();
+    playerLabelPosition.y += 0.2;
+    playerLabelPosition.project(this.camera);
+  
+    const playerLabelX = (playerLabelPosition.x * 0.5 + 0.5) * window.innerWidth;
+    const playerLabelY = (playerLabelPosition.y * -0.5 + 0.5) * window.innerHeight;
+  
+    this.playerLabelDiv.style.transform = `translate(-50%, -150%) translate(${playerLabelX}px,${playerLabelY}px)`;
+  
+    // 更新其他玩家的用户名标签位置
     for (let id in this.avatars) {
       const avatar = this.avatars[id];
       const labelPosition = avatar.head.position.clone();
+      labelPosition.y += 0.2;
       labelPosition.project(this.camera);
-
+  
       const x = (labelPosition.x * 0.5 + 0.5) * window.innerWidth;
       const y = (labelPosition.y * -0.5 + 0.5) * window.innerHeight;
-
+  
       avatar.labelDiv.style.transform = `translate(-50%, -150%) translate(${x}px,${y}px)`;
     }
-
+  
     // update client volumes every 25 frames
     if (this.frameCount % 25 === 0) {
       this.updateClientVolumes();
     }
-
+  
     this.renderer.render(this.scene, this.camera);
-
+  
     requestAnimationFrame(() => this.loop());
   }
 }

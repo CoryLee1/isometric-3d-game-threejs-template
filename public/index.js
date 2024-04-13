@@ -45,6 +45,17 @@ window.onload = async () => {
   }, 200);
 };
 
+function setUsername(username) {
+  mySocket.emit('setUsername', username);
+  myScene.updatePlayerUsername(username);
+}
+
+document.getElementById('set-username-button').addEventListener('click', () => {
+  const username = document.getElementById('username-input').value;
+  setUsername(username);
+});
+
+
 ////////////////////////////////////////////////////////////////////////////////
 // Socket.io Connections
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,8 +64,17 @@ window.onload = async () => {
 function establishWebsocketConnection() {
   mySocket = io();
 
-  mySocket.on("connect", () => {
-    console.log("My socket ID is", mySocket.id);
+  mySocket.on('connect', () => {
+    console.log('My socket ID is', mySocket.id);
+    setUsername('User' + Math.floor(Math.random() * 1000));
+  });
+
+  mySocket.on("usernames", (usernames) => {
+    for (let id in usernames) {
+      if (id in peers) {
+        myScene.updatePeerUsername(id, usernames[id]);
+      }
+    }
   });
 
   mySocket.on("introduction", (peerInfo) => {
