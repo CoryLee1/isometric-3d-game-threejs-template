@@ -59,6 +59,7 @@ export class MyScene {
       { x: 0, y: 0.5, z: 0 },
     ];
 
+
     for (let i = 0; i < this.npcPositions.length; i++) {
       const npc = new THREE.Mesh(
         new THREE.TorusGeometry(0.5, 0.2, 16, 100),
@@ -77,7 +78,7 @@ export class MyScene {
       const dialogueDiv = document.createElement('div');
       dialogueDiv.className = 'npc-dialogue';
       dialogueDiv.textContent = '';
-      dialogueDiv.style.position = 'absolute'; 
+      dialogueDiv.style.position = 'absolute';
       dialogueDiv.style.display = 'none'; // 默认不显示
       document.body.appendChild(dialogueDiv); // 添加到页面中
 
@@ -138,7 +139,30 @@ export class MyScene {
     );
     this.ground.rotation.x = -Math.PI / 2;
     this.scene.add(this.ground);
-    this.loop();
+    // Load dialogues and start the scene loop after dialogues are assigned
+    this.loadDialogues().then(() => {
+      this.startDialogueTimer(); // 确保在开始计时器之前加载对话框
+      this.loop();
+    });
+  }
+  loadDialogues() {
+    // 确保这里返回 promise
+    return fetch('npc_dialogues_clean_array.json') // 调整路径以符合您的设置
+      .then(response => response.json())
+      .then(dialogues => {
+        this.assignDialogues(dialogues);
+      });
+  }
+
+  assignDialogues(dialogues) {
+    this.npcs.forEach((npc, index) => {
+      // Assuming each NPC dialogue is at the corresponding index
+      npc.dialogues = dialogues.map(dialogue => dialogue[`NPC${index + 1}`]);
+      npc.currentDialogueIndex = 0;
+    });
+
+    // Start the dialogue refresh timer
+    this.startDialogueTimer();
   }
 
   //////////////////////////////////////////////////////////////////////
@@ -304,6 +328,73 @@ export class MyScene {
   updatePlayerUsername(username) {
     this.playerLabelDiv.textContent = username;
   }
+  updateDialogue() {
+    this.npcs.forEach((npc, index) => {
+      const proximityThreshold = 4;
+      const distance = npc.mesh.position.distanceTo(this.player.position);
+      const isCloseToPlayer = distance < proximityThreshold;
+      const dialogues = npc.dialogues;
+      const dialogueIndex = npc.currentDialogueIndex % dialogues.length;
+  
+      // Display dialogues for NPCs in proximity
+      if (isCloseToPlayer) {
+        // 确保有对话要显示
+        if (!dialogues || dialogues.length === 0) {
+          console.error(`No dialogues found for NPC${index + 1}`);
+          return;
+        }
+        if ((index === 0 || index === 1) || // NPCs 1 and 2
+          (index === 2 || index === 3) || // NPCs 3 and 4
+          (index === 4 || index === 5)) { // NPCs 5 and 6
+          // Find the partner NPC index
+          const partnerIndex = index % 2 === 0 ? index + 1 : index - 1;
+          const partnerDialogue = this.npcs[partnerIndex].dialogues[dialogueIndex];
+  
+          npc.dialogueDiv.textContent = dialogues[dialogueIndex] + " " + partnerDialogue;
+        } else if (index === 6) { // NPC 7
+          npc.dialogueDiv.textContent = dialogues[dialogueIndex];
+        }
+        npc.dialogueDiv.style.display = 'block';
+        this.updateDialoguePosition(npc.mesh, npc.dialogueDiv); // 更新对话框位置
+      } else {
+        npc.dialogueDiv.style.display = 'none';
+      }
+    });
+  }
+  
+  startDialogueTimer() {
+    setInterval(() => {
+      this.npcs.forEach(npc => {
+        npc.currentDialogueIndex++;
+      });
+      this.updateDialogue();
+    }, 5000);
+  }
+
+  updateDialoguePosition(mesh, dialogueDiv) {
+    const labelPosition = new THREE.Vector3();
+    labelPosition.setFromMatrixPosition(mesh.matrixWorld);
+    labelPosition.y += 1; // 在Y轴方向上稍微提升标签位置
+    labelPosition.project(this.camera);
+
+    const x = (labelPosition.x * .5 + .5) * this.renderer.domElement.clientWidth;
+    const y = (labelPosition.y * -.5 + .5) * this.renderer.domElement.clientHeight;
+
+    dialogueDiv.style.left = `${x}px`;
+    dialogueDiv.style.top = `${y}px`;
+  }
+  // 新增的帮助函数用于更新标签位置
+  updateLabelPosition(object3D, labelDiv, yOffset) {
+    const labelPosition = object3D.position.clone();
+    labelPosition.y += yOffset; // 在Y轴方向上稍微提升标签位置
+    labelPosition.project(this.camera);
+
+    const x = (labelPosition.x * 0.5 + 0.5) * this.renderer.domElement.clientWidth;
+    const y = (labelPosition.y * -0.5 + 0.5) * this.renderer.domElement.clientHeight;
+
+    labelDiv.style.transform = `translate(-50%, -50%) translate(${x}px,${y}px)`;
+    labelDiv.style.zIndex = labelPosition.z < 1 ? '25' : '-25';
+  }
   //////////////////////////////////////////////////////////////////////
   //////////////////////////////////////////////////////////////////////
   // Interaction 🤾‍♀️
@@ -344,6 +435,8 @@ export class MyScene {
     });
 
     this.updateDialogue();
+  
+
 
     // 只有当一个NPC被选中拖动时，才运行射线投射器的逻辑
     if (this.selectedNPC) {
@@ -367,77 +460,4 @@ export class MyScene {
     // 请求下一帧动画
     requestAnimationFrame(() => this.loop());
   }
-
-  // 新增的帮助函数用于更新标签位置
-  updateLabelPosition(object3D, labelDiv, yOffset) {
-    const labelPosition = object3D.position.clone();
-    labelPosition.y += yOffset; // 在Y轴方向上稍微提升标签位置
-    labelPosition.project(this.camera);
-
-    const x = (labelPosition.x * 0.5 + 0.5) * this.renderer.domElement.clientWidth;
-    const y = (labelPosition.y * -0.5 + 0.5) * this.renderer.domElement.clientHeight;
-
-    labelDiv.style.transform = `translate(-50%, -50%) translate(${x}px,${y}px)`;
-    labelDiv.style.zIndex = labelPosition.z < 1 ? '25' : '-25';
-  }
-  updateDialogue() {
-    this.npcs.forEach((npc, index) => {
-      const distance = npc.mesh.position.distanceTo(this.player.position);
-
-      // 更新对话内容和显示状态
-      if (distance < 2) {
-        let text = '';
-        switch (index) {
-          case 0:
-            text = '哈哈哈哈';
-            break;
-          case 1:
-            text = '呵呵呵';
-            break;
-          case 2:
-            text = '嘻嘻嘻';
-            break;
-          case 3:
-            text = '吼吼吼';
-            break;
-          case 4:
-            text = '嗷嗷嗷啊';
-            break;
-          case 5:
-            text = '呜呜呜';
-            break;
-          case 6:
-            text = '靠北';
-            break;
-          default:
-            text = '';
-            break;
-        }
-        npc.dialogueDiv.textContent = text;
-        npc.dialogueDiv.style.display = 'block'; // 显示对话标签
-      } else {
-        npc.dialogueDiv.style.display = 'none'; // 隐藏对话标签
-      }
-
-      // 更新对话标签位置
-      if (npc.dialogueDiv.style.display !== 'none') {
-        this.updateDialoguePosition(npc.mesh, npc.dialogueDiv);
-      }
-    });
-  }
-
-  updateDialoguePosition(mesh, dialogueDiv) {
-    const labelPosition = new THREE.Vector3();
-    labelPosition.setFromMatrixPosition(mesh.matrixWorld);
-    labelPosition.y += 1; // 在Y轴方向上稍微提升标签位置
-    labelPosition.project(this.camera);
-
-    const x = (labelPosition.x * .5 + .5) * this.renderer.domElement.clientWidth;
-    const y = (labelPosition.y * -.5 + .5) * this.renderer.domElement.clientHeight;
-
-    dialogueDiv.style.left = `${x}px`;
-    dialogueDiv.style.top = `${y}px`;
-  }
-
-
 }  
