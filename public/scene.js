@@ -33,7 +33,7 @@ export class MyScene {
 
     this.setupEnvironment();
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-
+    this.raycaster = new THREE.Raycaster();
     // 创建玩家对象
     this.player = new THREE.Mesh(
       new THREE.BoxGeometry(1, 1, 1),
@@ -125,8 +125,7 @@ export class MyScene {
       // 清除 selectedNPC，因为拖动已结束
       this.selectedNPC = null;
     });
-
-
+    this.selectedDialogues = [];
     // 创建用于显示自己用户名的HTML元素
     this.playerLabelDiv = document.createElement('div');
     this.playerLabelDiv.className = 'user-label';
@@ -153,18 +152,30 @@ export class MyScene {
         this.assignDialogues(dialogues);
       });
   }
-
   assignDialogues(dialogues) {
     this.npcs.forEach((npc, index) => {
       // Assuming each NPC dialogue is at the corresponding index
       npc.dialogues = dialogues.map(dialogue => dialogue[`NPC${index + 1}`]);
       npc.currentDialogueIndex = 0;
+
+      // 创建对话标签
+      const dialogueDiv = document.createElement('div');
+      dialogueDiv.className = 'npc-dialogue';
+      dialogueDiv.textContent = '';
+      dialogueDiv.style.position = 'absolute';
+      dialogueDiv.style.display = 'none'; // 默认不显示
+      dialogueDiv.addEventListener('click', () => {
+        this.selectDialogue(npc.dialogueDiv.textContent);
+      });
+      document.body.appendChild(dialogueDiv); // 添加到页面中
+
+      // 存储对话标签引用
+      npc.dialogueDiv = dialogueDiv;
     });
 
     // Start the dialogue refresh timer
     this.startDialogueTimer();
   }
-
   //////////////////////////////////////////////////////////////////////
   //////////////////////////////////////////////////////////////////////
   // Lighting 💡
@@ -328,6 +339,7 @@ export class MyScene {
   updatePlayerUsername(username) {
     this.playerLabelDiv.textContent = username;
   }
+
   updateDialogue() {
     this.npcs.forEach((npc, index) => {
       const proximityThreshold = 4;
@@ -362,6 +374,7 @@ export class MyScene {
     });
   }
   
+
   startDialogueTimer() {
     setInterval(() => {
       this.npcs.forEach(npc => {
@@ -394,6 +407,37 @@ export class MyScene {
 
     labelDiv.style.transform = `translate(-50%, -50%) translate(${x}px,${y}px)`;
     labelDiv.style.zIndex = labelPosition.z < 1 ? '25' : '-25';
+  }
+  selectDialogue(dialogue) {
+    console.log(`Dialogue selected: ${dialogue}`);
+    // 防止选中超过5条对话
+    if (this.selectedDialogues.length >= 5) {
+      alert('You can only select up to 5 dialogues.');
+      return;
+    }
+  
+    // 添加对话内容到数组
+    this.selectedDialogues.push(dialogue);
+  
+    // 更新UI
+    this.updateSelectedDialoguesUI();
+  
+    // 检查是否选中了5条对话
+    if (this.selectedDialogues.length === 5) {
+      const prompt = this.selectedDialogues.join(' ');
+      console.log(prompt); // 这里您可以处理prompt，例如发送给服务器
+    }
+  }
+
+  updateSelectedDialoguesUI() {
+    console.log("Updating selected dialogues UI");
+    const listElement = document.getElementById('selected-dialogues-list');
+    listElement.innerHTML = ''; // 清空当前列表
+    this.selectedDialogues.forEach(dialogue => {
+      const listItem = document.createElement('li');
+      listItem.textContent = dialogue;
+      listElement.appendChild(listItem);
+    });
   }
   //////////////////////////////////////////////////////////////////////
   //////////////////////////////////////////////////////////////////////
@@ -435,7 +479,7 @@ export class MyScene {
     });
 
     this.updateDialogue();
-  
+
 
 
     // 只有当一个NPC被选中拖动时，才运行射线投射器的逻辑
