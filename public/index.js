@@ -31,10 +31,17 @@ window.onload = async () => {
   }
 
   createLocalVideoElement();
-
+  
+  // Add the event listener for 'dialoguesSelected' event
+  document.addEventListener('dialoguesSelected', (event) => {
+    const prompt = event.detail;
+    mySocket.emit("generateURL", prompt);
+  });
   //  create the threejs scene
   console.log("Creating three.js scene...");
-  myScene = new MyScene();
+  myScene = new MyScene(mySocket, (prompt) => {
+    mySocket.emit("generateURL", prompt);
+  });
 
   // finally create the websocket connection
   establishWebsocketConnection();
@@ -132,6 +139,19 @@ function establishWebsocketConnection() {
       // forward the new simplepeer that signal
       peerConnection.signal(data);
     }
+  });
+
+  mySocket.on("generatedURL", (url) => {
+    
+    console.log('Received URL:', url);
+    
+    // Display a message to the user
+    alert('You will be redirected to the generated URL in 5 seconds.');
+  
+    // Set a timer to open the URL after 5 seconds
+    setTimeout(() => {
+      window.open(url, '_blank');
+    }, 5000);
   });
 
   // Update when one of the users moves in space

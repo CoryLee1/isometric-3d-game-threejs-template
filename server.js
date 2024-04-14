@@ -1,3 +1,4 @@
+require('dotenv').config();
 // the express package will run our server
 const express = require("express");
 const app = express();
@@ -15,7 +16,44 @@ const io = require("socket.io")().listen(server);
 
 const peers = {};
 const usernames = {};
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const genAI = new GoogleGenerativeAI(process.env.API_KEY);
 
+async function generateURL(prompt) {
+  const generationConfig = {
+    stopSequences: ["red"],
+    maxOutputTokens: 200,
+    temperature: 0.95,
+    topP: 0.1,
+    topK: 16,
+  };
+
+  const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro-001" });
+
+  try {
+    // 第一步:根据对话总结用户的兴趣
+    const interestResult = await model.generateContent(
+      `Based on the following dialogue:\n${prompt}\nPlease summarize what kind of website topic/real world location/video topic the user might be interested in, in one sentence.`,
+      generationConfig
+    );
+    const interestResponse = await interestResult.response;
+    const interest = interestResponse.text();
+    console.log("Inferred user interest:", interest);
+
+    // 第二步:根据用户的兴趣搜索相关的视频或Google地点的URL
+    const urlResult = await model.generateContent(
+      `Please search on the internet. You are a URL generator. Based on the following user interest:\n${interest}\nPlease generate a related video or Google Maps location URL that the user might be interested in visiting.`,
+      generationConfig
+    );
+    const urlResponse = await urlResult.response;
+    const url = urlResponse.text();
+    console.log("Generated URL:", url);
+    return url;
+  } catch (error) {
+    console.error("Error generating URL:", error);
+    return null;
+  }
+}
 io.on("connection", (socket) => {
   console.log(
     "Someone joined our server using socket.io.  Their socket id is",
@@ -59,6 +97,11 @@ io.on("connection", (socket) => {
     } else {
       console.log("Peer not found!");
     }
+  });
+  //generate URL
+  socket.on("generateURL", async (prompt) => {
+    const url = await generateURL(prompt);
+    socket.emit("generatedURL", url);
   });
 
   socket.on("disconnect", () => {

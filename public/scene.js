@@ -2,9 +2,10 @@ import * as THREE from "three";
 import { OrbitControls } from 'three/addons/controls/OrbitControls';
 
 export class MyScene {
-  constructor() {
+  constructor(socket, onDialoguesSelected) {
     this.avatars = {};
-
+    this.socket = socket;
+    this.onDialoguesSelected = onDialoguesSelected;
     // create a scene in which all other objects will exist
     this.scene = new THREE.Scene();
 
@@ -431,7 +432,8 @@ export class MyScene {
     // 检查是否选中了5条对话
     if (this.selectedDialogues.length === 5) {
       const prompt = this.selectedDialogues.join(' ');
-      console.log(prompt); // 这里您可以处理prompt，例如发送给服务器
+      console.log('Generated prompt:', prompt);
+      this.onDialoguesSelected(prompt);
     }
   }
 
