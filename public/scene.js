@@ -160,6 +160,7 @@ export class MyScene {
 
       // 创建对话标签
       const dialogueDiv = document.createElement('div');
+      
       dialogueDiv.className = 'npc-dialogue';
       dialogueDiv.textContent = '';
       dialogueDiv.style.position = 'absolute';
@@ -168,6 +169,7 @@ export class MyScene {
         this.selectDialogue(npc.dialogueDiv.textContent);
       });
       document.body.appendChild(dialogueDiv); // 添加到页面中
+      document.getElementById('dialogue-container').appendChild(dialogueDiv); // 添加到对话框容器中
 
       // 存储对话标签引用
       npc.dialogueDiv = dialogueDiv;
@@ -339,37 +341,42 @@ export class MyScene {
   updatePlayerUsername(username) {
     this.playerLabelDiv.textContent = username;
   }
-
   updateDialogue() {
     this.npcs.forEach((npc, index) => {
       const proximityThreshold = 4;
       const distance = npc.mesh.position.distanceTo(this.player.position);
       const isCloseToPlayer = distance < proximityThreshold;
+  
+      if (isCloseToPlayer) {
+        npc.dialogueDiv.style.display = 'block';
+        this.updateDialoguePosition(npc.mesh, npc.dialogueDiv);
+      } else {
+        npc.dialogueDiv.style.display = 'none';
+      }
+    });
+  }
+  
+  updateDialogueContent() {
+    this.npcs.forEach((npc, index) => {
       const dialogues = npc.dialogues;
       const dialogueIndex = npc.currentDialogueIndex % dialogues.length;
   
-      // Display dialogues for NPCs in proximity
-      if (isCloseToPlayer) {
-        // 确保有对话要显示
-        if (!dialogues || dialogues.length === 0) {
-          console.error(`No dialogues found for NPC${index + 1}`);
-          return;
-        }
-        if ((index === 0 || index === 1) || // NPCs 1 and 2
-          (index === 2 || index === 3) || // NPCs 3 and 4
-          (index === 4 || index === 5)) { // NPCs 5 and 6
-          // Find the partner NPC index
-          const partnerIndex = index % 2 === 0 ? index + 1 : index - 1;
-          const partnerDialogue = this.npcs[partnerIndex].dialogues[dialogueIndex];
+      // 确保有对话要显示
+      if (!dialogues || dialogues.length === 0) {
+        console.error(`No dialogues found for NPC${index + 1}`);
+        return;
+      }
   
-          npc.dialogueDiv.textContent = dialogues[dialogueIndex] + " " + partnerDialogue;
-        } else if (index === 6) { // NPC 7
-          npc.dialogueDiv.textContent = dialogues[dialogueIndex];
-        }
-        npc.dialogueDiv.style.display = 'block';
-        this.updateDialoguePosition(npc.mesh, npc.dialogueDiv); // 更新对话框位置
-      } else {
-        npc.dialogueDiv.style.display = 'none';
+      if ((index === 0 || index === 1) || // NPCs 1 and 2
+        (index === 2 || index === 3) || // NPCs 3 and 4
+        (index === 4 || index === 5)) { // NPCs 5 and 6
+        // Find the partner NPC index
+        const partnerIndex = index % 2 === 0 ? index + 1 : index - 1;
+        const partnerDialogue = this.npcs[partnerIndex].dialogues[dialogueIndex];
+  
+        npc.dialogueDiv.textContent = dialogues[dialogueIndex] + " " + partnerDialogue;
+      } else if (index === 6) { // NPC 7
+        npc.dialogueDiv.textContent = dialogues[dialogueIndex];
       }
     });
   }
@@ -380,7 +387,7 @@ export class MyScene {
       this.npcs.forEach(npc => {
         npc.currentDialogueIndex++;
       });
-      this.updateDialogue();
+      this.updateDialogueContent();
     }, 5000);
   }
 
@@ -389,12 +396,11 @@ export class MyScene {
     labelPosition.setFromMatrixPosition(mesh.matrixWorld);
     labelPosition.y += 1; // 在Y轴方向上稍微提升标签位置
     labelPosition.project(this.camera);
-
+  
     const x = (labelPosition.x * .5 + .5) * this.renderer.domElement.clientWidth;
     const y = (labelPosition.y * -.5 + .5) * this.renderer.domElement.clientHeight;
-
-    dialogueDiv.style.left = `${x}px`;
-    dialogueDiv.style.top = `${y}px`;
+  
+    dialogueDiv.style.transform = `translate(-50%, -50%) translate(${x}px,${y}px)`;
   }
   // 新增的帮助函数用于更新标签位置
   updateLabelPosition(object3D, labelDiv, yOffset) {
