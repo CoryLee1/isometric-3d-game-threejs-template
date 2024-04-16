@@ -13,6 +13,7 @@
     "@google/generative-ai": "^0.6.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.1",
+    "google-search-results-nodejs": "^2.1.0",
     "openai": "^4.33.1",
     "socket.io": "^4.6.1"
   }

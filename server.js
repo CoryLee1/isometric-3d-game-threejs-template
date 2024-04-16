@@ -18,6 +18,8 @@ const peers = {};
 const usernames = {};
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const genAI = new GoogleGenerativeAI(process.env.API_KEY);
+const SerpApi = require("google-search-results-nodejs");
+const search = new SerpApi.GoogleSearch(process.env.SERPAPI_API_KEY);
 
 async function generateURL(prompt) {
   const generationConfig = {
@@ -31,24 +33,32 @@ async function generateURL(prompt) {
   const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro-001" });
 
   try {
-    // 第一步:根据对话总结用户的兴趣
-    const interestResult = await model.generateContent(
-      `Based on the following dialogue:\n${prompt}\nPlease summarize what kind of website topic/real world location/video topic the user might be interested in, in one sentence.`,
+    // 使用 Gemini 根据对话总结关键词
+    const keywordResult = await model.generateContent(
+      `Based on the following dialogue:\n${prompt}\nPlease summarize the main topic or keyword of the conversation in one or two words.`,
       generationConfig
     );
-    const interestResponse = await interestResult.response;
-    const interest = interestResponse.text();
-    console.log("Inferred user interest:", interest);
+    const keywordResponse = await keywordResult.response;
+    const keyword = keywordResponse.text();
+    console.log("Generated keyword:", keyword);
 
-    // 第二步:根据用户的兴趣搜索相关的视频或Google地点的URL
-    const urlResult = await model.generateContent(
-      `Please search on the internet. You are a URL generator. Based on the following user interest:\n${interest}\nPlease generate a related video or Google Maps location URL that the user might be interested in visiting.`,
-      generationConfig
-    );
-    const urlResponse = await urlResult.response;
-    const url = urlResponse.text();
-    console.log("Generated URL:", url);
-    return url;
+    // 使用 Google Search API 搜索相关 URL
+    const params = {
+      q: keyword,
+      location: "New York, New York, United States",
+      hl: "en",
+      gl: "us",
+      google_domain: "google.com",
+    };
+
+    const callback = function (data) {
+      const firstResult = data["organic_results"][0];
+      const url = firstResult["link"];
+      console.log("Generated URL:", url);
+      return url;
+    };
+
+    search.json(params, callback);
   } catch (error) {
     console.error("Error generating URL:", error);
     return null;
@@ -100,8 +110,13 @@ io.on("connection", (socket) => {
   });
   //generate URL
   socket.on("generateURL", async (prompt) => {
-    const url = await generateURL(prompt);
-    socket.emit("generatedURL", url);
+    try {
+      const url = await generateURL(prompt);
+      io.socket.emit("generatedURL", url);
+    } catch (error) {
+      console.error("Error generating URL:", error);
+      io.socket.emit("generatedURL", null);
+    }
   });
 
   socket.on("disconnect", () => {
